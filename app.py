@@ -38,7 +38,12 @@ def get_btc_data():
 def get_market_data():
     try:
         url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=^IXIC,^DXY"
-        r = requests.get(url)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        r = requests.get(url, headers=headers, timeout=10)
         data = r.json()["quoteResponse"]["result"]
 
         nasdaq = None
@@ -57,7 +62,9 @@ def get_market_data():
                 }
 
         return nasdaq, dxy
-    except:
+
+    except Exception as e:
+        print("Market data error:", e)
         return None, None
 
 
