@@ -1,8 +1,11 @@
 import os
 import requests
 import feedparser
+import time
+from datetime import datetime
 from deep_translator import GoogleTranslator
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
@@ -12,7 +15,10 @@ RSS_FEEDS = [
     "https://www.coindesk.com/arc/outboundfeeds/rss/",
 ]
 
-# --------- BTC PRICE ----------
+SEND_HOURS = [6, 11, 16, 21]  # Челябинск (UTC+5)
+last_sent_hour = None
+
+# -------- BTC PRICE --------
 def get_btc_price():
     try:
         r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
@@ -20,14 +26,14 @@ def get_btc_price():
     except:
         return None
 
-# --------- TRANSLATE ----------
+# -------- TRANSLATE --------
 def translate_text(text):
     try:
         return GoogleTranslator(source="auto", target="ru").translate(text)
     except:
         return text
 
-# --------- CLASSIFY ----------
+# -------- CLASSIFY --------
 def classify_news(title):
     title_lower = title.lower()
 
@@ -44,7 +50,7 @@ def classify_news(title):
     else:
         return "🟠 Крипторынок"
 
-# --------- GET NEWS ----------
+# -------- GET NEWS --------
 def get_news():
     headlines = []
     for url in RSS_FEEDS:
@@ -53,32 +59,54 @@ def get_news():
             headlines.append(entry.title)
     return headlines[:5]
 
-# --------- SEND MESSAGE ----------
+# -------- SEND MESSAGE --------
 def send_message():
+    global last_sent_hour
+
     btc_price = get_btc_price()
     news = get_news()
 
-    message = "📊 Crypto Macro Radar\n\n"
+    message = "📊 <b>Crypto Macro Radar</b>\n\n"
 
     if btc_price:
-        message += f"💰 BTC: ${btc_price:,.2f}\n\n"
+        message += f"💰 <b>BTC:</b> ${btc_price:,.0f}\n"
 
-    message += "📰 Главные события:\n\n"
+    message += "\n━━━━━━━━━━━━━━━━\n\n"
+    message += "📰 <b>Главные события</b>\n\n"
 
     for n in news:
         translated = translate_text(n)
         category = classify_news(n)
-        message += f"{category}\n• {translated}\n\n"
+
+        message += f"{category}\n"
+        message += f"{translated}\n\n"
+
+    message += "━━━━━━━━━━━━━━━━\n"
+    message += f"⏱ Обновление: {datetime.now().strftime('%H:%M')} (Челябинск)"
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": CHAT_ID,
-        "text": message
+        "text": message,
+        "parse_mode": "HTML"
     }
 
     requests.post(url, data=data)
+    last_sent_hour = datetime.now().hour
 
-# --------- WEB SERVER ----------
+# -------- SCHEDULER --------
+def scheduler():
+    global last_sent_hour
+    while True:
+        now = datetime.utcnow()
+        chelyabinsk_hour = (now.hour + 5) % 24  # UTC+5
+
+        if chelyabinsk_hour in SEND_HOURS and last_sent_hour != chelyabinsk_hour:
+            send_message()
+
+        time.sleep(60)
+
+# -------- WEB SERVER --------
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -91,5 +119,5 @@ def run_server():
     server.serve_forever()
 
 if __name__ == "__main__":
-    send_message()
+    threading.Thread(target=scheduler).start()
     run_server()
