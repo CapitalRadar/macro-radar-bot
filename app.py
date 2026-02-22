@@ -1,19 +1,18 @@
 import os
 import requests
 import feedparser
-import threading
+from deep_translator import GoogleTranslator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# --------- RSS SOURCES ----------
 RSS_FEEDS = [
     "https://feeds.reuters.com/reuters/businessNews",
     "https://www.coindesk.com/arc/outboundfeeds/rss/",
 ]
 
-# --------- GET BTC PRICE ----------
+# --------- BTC PRICE ----------
 def get_btc_price():
     try:
         r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
@@ -21,12 +20,36 @@ def get_btc_price():
     except:
         return None
 
+# --------- TRANSLATE ----------
+def translate_text(text):
+    try:
+        return GoogleTranslator(source="auto", target="ru").translate(text)
+    except:
+        return text
+
+# --------- CLASSIFY ----------
+def classify_news(title):
+    title_lower = title.lower()
+
+    if "rate" in title_lower or "inflation" in title_lower:
+        return "🔵 Денежная политика"
+    elif "etf" in title_lower:
+        return "🟣 ETF и институционалы"
+    elif "nasdaq" in title_lower or "tech" in title_lower:
+        return "🟢 Технологический рынок"
+    elif "dollar" in title_lower or "yield" in title_lower:
+        return "🟡 Доллар и облигации"
+    elif "war" in title_lower or "sanction" in title_lower:
+        return "🔴 Геополитика"
+    else:
+        return "🟠 Крипторынок"
+
 # --------- GET NEWS ----------
 def get_news():
     headlines = []
     for url in RSS_FEEDS:
         feed = feedparser.parse(url)
-        for entry in feed.entries[:3]:
+        for entry in feed.entries[:2]:
             headlines.append(entry.title)
     return headlines[:5]
 
@@ -40,9 +63,12 @@ def send_message():
     if btc_price:
         message += f"💰 BTC: ${btc_price:,.2f}\n\n"
 
-    message += "📰 Top Headlines:\n"
+    message += "📰 Главные события:\n\n"
+
     for n in news:
-        message += f"• {n}\n"
+        translated = translate_text(n)
+        category = classify_news(n)
+        message += f"{category}\n• {translated}\n\n"
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {
