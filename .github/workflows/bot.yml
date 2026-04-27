@@ -22,4 +22,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Запускаем бота
-        run: python app.py
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python app.py 
