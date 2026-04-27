@@ -168,37 +168,13 @@ def send_message():
 
     # фиксируем именно челябинский час
     now = datetime.utcnow()
-    last_sent_hour = (now.hour + 5) % 24
-
-
-# -------- SCHEDULER --------
-def scheduler():
-    global last_sent_hour
-    while True:
-        now = datetime.utcnow()
-        chelyabinsk_hour = (now.hour + 5) % 24
-
-        if chelyabinsk_hour in SEND_HOURS and last_sent_hour != chelyabinsk_hour:
-            send_message()
-
-        time.sleep(60)
-
-
-# -------- WEB SERVER --------
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Macro Radar running")
-
-
-def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    server.serve_forever()
-
 
 if __name__ == "__main__":
-    send_message()  # тестовое сообщение при деплое
-    threading.Thread(target=scheduler).start()
-    run_server()
+    now = datetime.utcnow()
+    current_hour = (now.hour + 5) % 24
+
+    if current_hour in SEND_HOURS:
+        print("Отправка сообщения")
+        send_message()
+    else:
+        print("Не время отправки")
